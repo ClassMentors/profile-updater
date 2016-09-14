@@ -7,7 +7,9 @@ var Queue = require('firebase-queue'),
 /*
 node cm-worker.js -t <secret>
 node cm-worker.js -fcc <fccProfileURL>
-node cm-worker.js firebaseUrl=http://singpath-play.firebase.com token=myToken numTasks=1 maxIdle=5
+node-lambda run
+
+node-lambda will use the defaults in the .env file
 */
 
 var profileUpdateCount = 0
@@ -126,6 +128,10 @@ var get_achievements_from_response = function (service, body) {
     var start = body.indexOf(">[ ");
     var stop = body.indexOf(" ]<");
     totalAchievements = body.substring(start + 3, stop);
+    if (totalAchievements == '<!'){
+      console.log("Make a change here.");
+      totalAchievements = -1;
+    }
     //console.log("Free Code Camp levels = " + totalAchievements);
   }
   else if(service == "pivotalExpert"){
@@ -303,19 +309,20 @@ var process_task = function (data, progress, resolve, reject) {
  var handler = function (event, context) {
     //console.log( "event", event );
     //console.log(context);
-    //console.log(process.env);
+    console.log(process.env);
     var firebaseUrl = process.env.FIREBASE_URL;
     var firebaseToken = process.env.FIREBASE_TOKEN;
     if(firebaseUrl && firebaseToken){
       console.log("--------");
-      //console.log(firebaseUrl);
-      //console.log(firebaseToken);
+      console.log(firebaseUrl);
+      console.log(firebaseToken);
       initiateFirebase(firebaseUrl, firebaseToken);
       var data = {"from":"handler", "updated":Firebase.ServerValue.TIMESTAMP};
       ref.child('queue/tasks').once('value', function (snapshot) {
           // code to handle new value
           var tasks = snapshot.val();
-          if(tasks){
+          // try just always leaving the worker on for 50 seconds. 
+          if(true){ //if(tasks){
               console.log("There were tasks.");
               var delay = 50000;
               console.log("Starting queue for "+delay+"ms.")  
