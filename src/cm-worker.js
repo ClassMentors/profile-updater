@@ -47,13 +47,18 @@ var saveFccAchievements = function(profileUrl,classmentorsPublicId, achievements
     // Also need to scrape the profile page due to points not adding up properly. 
     var numAchievements;
     request(profileUrl, function (error, response, body) {
-      var start = body.indexOf(">[ ");
-      var stop = body.indexOf(" ]<");
-      numAchievements = body.substring(start + 3, stop);
-      if (numAchievements== '<!'){
-        numAchievements = -1;
-       }
-      console.log("Free Code Camp levels = " + numAchievements);    
+      if(error){
+          numAchievements = -1;
+      } else {
+        var start = body.indexOf(">[ ");
+        var stop = body.indexOf(" ]<");
+        numAchievements = body.substring(start + 3, stop);
+        if (numAchievements== '<!' || numAchievements== 'Ca'){
+          numAchievements = -1;
+        }
+        //console.log("Free Code Camp levels = " + numAchievements); 
+      }
+   
   
 
 
