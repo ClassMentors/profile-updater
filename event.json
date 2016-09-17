@@ -1,5 +1,5 @@
-{
-  "key": "value",
-  "key2": "value2",
-  "other_key": "other_value"
+{ 
+  "debug":false,
+  "idleTimeout":10000,
+  "busyTimeout":30000
 }

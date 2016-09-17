@@ -5,11 +5,14 @@ var Queue = require('firebase-queue'),
 
 
 /*
-node cm-worker.js -t <secret>
-node cm-worker.js -fcc <fccProfileURL>
+node cm-worker.js -t <secret>   // to create worker token
+node cm-worker.js -fcc <fccProfileURL> // to download a freeCodeCamp profile. 
+
+node-lambda will use the defaults in the .env file for testing
 node-lambda run
 
-node-lambda will use the defaults in the .env file
+Pass environment secrets to AWS using the deploy.env file. 
+node-lambda deploy -f deploy.env
 */
 
 var profileUpdateCount = 0
@@ -307,45 +310,53 @@ var process_task = function (data, progress, resolve, reject) {
 }
 
  var handler = function (event, context) {
-    //console.log( "event", event );
-    //console.log(context);
-    console.log(process.env);
+    var eventIdleTimeout = 50000
+    var eventBusyTimeout = 60000
+    if(event['idleTimeout']){
+       eventIdleTimeout = event['idleTimeout'];
+       console.log("Updating idleTimeout to ",eventIdleTimeout );
+    }
+    if(event['busyTimeout']){
+       eventBusyTimeout = event['busyTimeout'];
+       console.log("Updating busyTimeout to ",eventBusyTimeout );
+    }
+    if(event['debug']){
+      console.log( "event", event );
+      //console.log(context);
+      console.log(process.env);
+    }
     var firebaseUrl = process.env.FIREBASE_URL;
     var firebaseToken = process.env.FIREBASE_TOKEN;
     if(firebaseUrl && firebaseToken){
-      console.log("--------");
-      console.log(firebaseUrl);
-      console.log(firebaseToken);
+      //console.log("--------");
+      //console.log(firebaseUrl);
+      //console.log(firebaseToken);
       initiateFirebase(firebaseUrl, firebaseToken);
       var data = {"from":"handler", "updated":Firebase.ServerValue.TIMESTAMP};
       ref.child('queue/tasks').once('value', function (snapshot) {
           // code to handle new value
           var tasks = snapshot.val();
-          // try just always leaving the worker on for 50 seconds. 
-          if(true){ //if(tasks){
-              console.log("There were tasks.");
-              var delay = 50000;
-              console.log("Starting queue for "+delay+"ms.")  
-              var options = {
+          var delay = eventIdleTimeout;
+          // If tasks, use the busyTimeout. 
+          if(tasks){
+              console.log("There were tasks. Using busy timeout.");
+              var delay = eventBusyTimeout;
+          }
+          console.log("Starting queue for "+delay+"ms.")  
+          var options = {
                 'specId': 'lambda-worker',
                 'numWorkers': 5,
                 //'sanitize': false,
                 //'suppressStack': true
-                };
-              queue = new Queue(queueRef, process_task);
+          };
+          queue = new Queue(queueRef, process_task);
               
-              setTimeout(function() { queue.shutdown().then(function () {
+          setTimeout(function() { queue.shutdown().then(function () {
                   console.log('Finished queue shutdown');
-                  console.log("--------");
                   context.done();
                  }); 
-            }, delay);
+          }, delay);
             
-          }
-          else {
-              console.log("There were no tasks.");
-              context.done();
-          }
           
       }, function (err) {
           console.log(err);
