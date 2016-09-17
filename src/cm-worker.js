@@ -37,22 +37,88 @@ var initiateFirebase = function(_firebaseUrl, firebaseToken){
     });  
 }
 
-var print_json_and_exit = function(theJson)
-{
-  console.log(theJson); 
+var print_json_and_exit = function(theObject){
+  console.log(theObject);
   process.exit(0);
 }
 
-var fetchFreeCodeCampUrl = function (profileUrl, callback) {
+var saveFccAchievements = function(profileUrl,classmentorsPublicId, achievements, resolve){
+    // FreeCodeCamp profile number does not match up with the listed achievements. 
+    // Also need to scrape the profile page due to points not adding up properly. 
+    var numAchievements;
+    request(profileUrl, function (error, response, body) {
+      var start = body.indexOf(">[ ");
+      var stop = body.indexOf(" ]<");
+      numAchievements = body.substring(start + 3, stop);
+      if (numAchievements== '<!'){
+        numAchievements = -1;
+       }
+      console.log("Free Code Camp levels = " + numAchievements);    
+  
+
+
+      //var numAchievements = Object.keys(achievements).length;
+      var profileUpdate = "classMentors/userProfiles/"+classmentorsPublicId+"/services/freeCodeCamp";
+      var achievementsUpdate = "classMentors/userAchievements/"+classmentorsPublicId+"/services/freeCodeCamp";
+
+      var updateData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":numAchievements};    
+      //Update the user profile.  
+      ref.child(profileUpdate).update(updateData);
+      
+      var achievementData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":numAchievements, 'achievements':achievements};
+      //Update the user achievements.  
+      ref.child(achievementsUpdate).update(achievementData);
+      
+      profileUpdateCount += 1;
+      console.log(profileUpdateCount+". "+classmentorsPublicId+" FreeCodeCamp updated to "+numAchievements);  
+
+      resolve();
+   });
+}
+var fetchFreeCodeCampProfileObject = function (profileUrl, classmentorsPublicId, resolve) {
   var xray = require('x-ray');
   var Xray = new xray();
   Xray(profileUrl, 'table.table-striped tr', [{
-    Project: 'td:nth-child(1)',
-    Complete: 'td:nth-child(2)'
-  }])(function (err, obj) {
-    if (err) { console.log('xray error:  ' + err); return; }
+    name: 'td:nth-child(1)',
+    complete: 'td:nth-child(2)'
+  }])(function (err, arr) {
+    if (err) { 
+      // TODO: Resolve bad urls and set total to -1. 
+      console.log('xray error:  ' + err); 
+      var profileUpdate = "classMentors/userProfiles/"+classmentorsPublicId+"/services/freeCodeCamp";
+      var achievementsUpdate = "classMentors/userAchievements/"+classmentorsPublicId+"/services/freeCodeCamp";
+      var updateData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":-1};    
+      ref.child(profileUpdate).update(updateData);
+      ref.child(achievementsUpdate).update(achievementData);
+      resolve();
+      //return; 
+    }
     else { 
-      callback(obj); }
+      var achievements = {}
+      for(var i=0; i<arr.length; i++){
+        
+        if(arr[i]['name']){
+          var newKey = arr[i]['name'].toLowerCase().split(" ").join("-");
+          //console.log(newKey, "---->",arr[i]);
+          achievements[newKey] = arr[i];
+        }
+        else{
+          console.log(arr[i]);
+        }
+        
+      }	
+      //console.log("There were",Object.keys(achievements).length, "achievements.");
+      
+      if(classmentorsPublicId == undefined){
+        console.log(achievements);
+        process.exit(0);
+      }
+      else{
+         //console.log("Should save data here for",classmentorsPublicId);
+         saveFccAchievements(profileUrl, classmentorsPublicId, achievements, resolve);
+      }
+
+  }
   });
 }
 
@@ -72,7 +138,8 @@ if(args[0] == '-t'){
 // node cm-worker.js -fcc <fccProfileURL>
 else if(args[0] == '-fcc'){
   var profileUrl = args[1];
-  fetchFreeCodeCampUrl(profileUrl,print_json_and_exit);
+  fetchFreeCodeCampProfileObject(profileUrl);
+
 }
 else if(args.length>1) {
   for(var i=0; i<args.length; i++){
@@ -108,7 +175,7 @@ var get_service_url = function (service, serviceID) {
   else if (service == "codeCombat") {
      theUrl = "https://codecombat.com/db/user/" + serviceID + "/level.sessions?project=state.complete,levelID,levelName";
      //theUrl= "https://codecombat.com/db/user/"+serviceID;
-    console.log("Using codeCombat url "+theUrl); 
+    //console.log("Using codeCombat url "+theUrl); 
   }
   
   else if (service == "pivotalExpert") {
@@ -128,13 +195,15 @@ var get_achievements_from_response = function (service, body) {
   var error = null;
   
   if (service == "freeCodeCamp") {
-    var start = body.indexOf(">[ ");
-    var stop = body.indexOf(" ]<");
-    totalAchievements = body.substring(start + 3, stop);
-    if (totalAchievements == '<!'){
-      console.log("Make a change here.");
-      totalAchievements = -1;
-    }
+
+    // replaced. 
+    //var start = body.indexOf(">[ ");
+    //var stop = body.indexOf(" ]<");
+    //totalAchievements = body.substring(start + 3, stop);
+    //if (totalAchievements == '<!'){
+    //  console.log("Make a change here.");
+    // totalAchievements = -1;
+    // }
     //console.log("Free Code Camp levels = " + totalAchievements);
   }
   else if(service == "pivotalExpert"){
@@ -147,7 +216,7 @@ var get_achievements_from_response = function (service, body) {
 
   }
   else if (service == "codeCombat") {
-
+    /* Replaced. 
     var jsonObject;
 
     try {
@@ -158,7 +227,10 @@ var get_achievements_from_response = function (service, body) {
 
     if (jsonObject) {
       //Currently includes stat.complete.false levels
-      //console.log("Code Combat levels = " + jsonObject.length);
+      console.log(" ****** Code Combat levels = " + jsonObject.length);
+      console.log(jsonObject);
+
+      
       var theCount = 0;
       for (var i = 0; i < jsonObject.length; i++) {
         if (jsonObject[i].state.complete == true) {
@@ -168,6 +240,7 @@ var get_achievements_from_response = function (service, body) {
       //console.log("Completed Code Combat levels = " + theCount);
       totalAchievements = theCount;
     }
+    */
   }
 
   else if (service == "codeSchool") {
@@ -254,8 +327,80 @@ var fetch_service_url = function (theUrl, data, service, serviceID, reject, reso
   }
 }
 
+var updateFreeCodeCamp = function(classMentorsId, serviceID, resolve){
+    //console.log("Update Free Code Camp for ClassMentors user",classMentorsId,"with fcc id", serviceID);
+    fetchFreeCodeCampProfileObject("https://www.freecodecamp.com/"+serviceID, classMentorsId, resolve);
+}
+
+var updateCodeCombat = function(classmentorsPublicId, serviceID, resolve){
+  //console.log("Update Code Combat for ClassMentors user",classmentorsPublicId,"with codeCombat id", serviceID);
+  var theUrl = "https://codecombat.com/db/user/" + serviceID + "/level.sessions?project=state.complete,levelID,levelName";
+  request(theUrl, function (error, response, body) {
+    
+    if (error) {
+        console.log(error);
+        //console.log("the body", body);
+        //resolve();
+    }
+    else {
+      var profileUpdate = "classMentors/userProfiles/"+classmentorsPublicId+"/services/codeCombat";
+      var achievementsUpdate = "classMentors/userAchievements/"+classmentorsPublicId+"/services/codeCombat";
+
+      var jsonObject;
+      var error = false;
+
+      try {
+        jsonObject = JSON.parse(body);
+        achievements = {};
+        var theCount = 0;
+        for (var i = 0; i < jsonObject.length; i++) {
+          if (jsonObject[i].state.complete == true) {
+            var item = {"name":jsonObject[i]['levelName'], "complete":true};
+            achievements[jsonObject[i]['levelID']] = item;
+            theCount += 1;
+          }
+        }
+              //console.log(achievements);
+        // Update user profile
+        // Update achievements
+        var numAchievements = theCount;
+
+        var updateData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":numAchievements};    
+        //Update the user profile.  
+        ref.child(profileUpdate).update(updateData);
+        
+        var achievementData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":numAchievements, 'achievements':achievements};
+        //Update the user achievements.  
+        ref.child(achievementsUpdate).update(achievementData);
+        
+        profileUpdateCount += 1;
+        console.log(profileUpdateCount+". "+classmentorsPublicId+" Code Combat updated to "+numAchievements);  
+      
+      } catch (e) {
+        console.log("Error parsing json from codeCombat. Setting achievements to -1. "+e);
+        
+        var achievementData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":-1};
+        //Update the user achievements.  
+        ref.child(profileUpdate).update(achievementData);
+        ref.child(achievementsUpdate).set(achievementData);
+ 
+      }
+  
+  }
+  });    
+  
+  resolve();
+}
+
 var get_profile = function (service_response_body, task_data, reject, resolve) {
-  var jsonObject = JSON.parse(service_response_body);
+  //console.log("task data",task_data);
+  var classMentorsId = task_data.id;
+  var jsonObject = {};
+  try {
+    jsonObject = JSON.parse(service_response_body);
+  } catch (e) {
+      console.log("Error parsing json from "+task_data.service+" "+e);
+    }
   var service = task_data.service;
   var services = jsonObject['services']
   
@@ -274,8 +419,14 @@ var get_profile = function (service_response_body, task_data, reject, resolve) {
       console.log("Resolving unsupported service. "+service+" "+serviceID);
       resolve("Non-supported service " + service);
       //reject("Non-supported service " + service);
-    }
-    else {
+    } else if(service=="freeCodeCamp") {
+         //console.log("Updating FreeCodeCamp achievements");
+         updateFreeCodeCamp(classMentorsId, serviceID, resolve)
+    
+    } else if(service=="codeCombat") {
+         //console.log("Updating Code Combat achievements");
+         updateCodeCombat(classMentorsId, serviceID, resolve);
+    } else {
     //Fetch the service url
       //console.log("requesting url ", theUrl)  
       request(theUrl, function (error, response, body) {
@@ -345,12 +496,11 @@ var process_task = function (data, progress, resolve, reject) {
           console.log("Starting queue for "+delay+"ms.")  
           var options = {
                 'specId': 'lambda-worker',
-                'numWorkers': 5,
-                //'sanitize': false,
-                //'suppressStack': true
+                'numWorkers': 5
           };
           queue = new Queue(queueRef, process_task);
-              
+          //queue.addWorker();
+          console.log("numWorkers",queue.getWorkerCount());    
           setTimeout(function() { queue.shutdown().then(function () {
                   console.log('Finished queue shutdown');
                   context.done();
