@@ -337,6 +337,80 @@ var updateFreeCodeCamp = function(classMentorsId, serviceID, resolve){
     fetchFreeCodeCampProfileObject("https://www.freecodecamp.com/"+serviceID, classMentorsId, resolve);
 }
 
+var updateCodeSchool = function (classmentorsPublicId, serviceID, resolve) {
+  var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
+  request(theUrl, function (error, response, body) {
+
+    if (error) {
+      console.log(error);
+      //console.log("the body", body);
+      //resolve();
+    } else {
+
+      var jsonObject;
+      var totalAchievements = -1;
+      try {
+        jsonObject = JSON.parse(body);
+      } catch (e) {
+        if (e.name = "SyntaxError") {
+          var message = "User Code School profile is not public."
+          console.log(message);
+          error = message;
+          //totalAchievements = -1;
+
+        }
+        //console.log("Error parsing json from codeSchool. "+e);
+        //console.log(e);
+      }
+
+      if (jsonObject) {
+        var arr = jsonObject['badges'];
+        //console.log("Code School Badges earned " + arr.length);
+        totalAchievements = arr.length;
+
+        //TODO: save achievements and achievement count. 
+        //console.log(arr);
+        var achievements = {}
+        var theCount = 0;
+        for(var i=0; i<arr.length; i++){
+        
+          if(arr[i]['name']){
+            var newKey = arr[i]['name'].toLowerCase().split(" ").join("-").split(".").join("-");
+            //console.log(newKey, "---->",arr[i]);
+            var item = {"name":arr[i]['name'], "complete":true};
+            achievements[newKey] = item;
+            theCount +=1;
+          }
+          else{
+            // no name parameter
+            //console.log(arr[i]);
+          }
+        
+        }	
+        //console.log(achievements);
+        var numAchievements = theCount;
+        var profileUpdate = "classMentors/userProfiles/"+classmentorsPublicId+"/services/codeSchool";
+        var achievementsUpdate = "classMentors/userAchievements/"+classmentorsPublicId+"/services/codeSchool";
+
+        var updateData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":numAchievements};    
+        //Update the user profile.  
+        ref.child(profileUpdate).update(updateData);
+        
+        var achievementData = {"lastUpdate":Firebase.ServerValue.TIMESTAMP, "totalAchievements":numAchievements, 'achievements':achievements};
+        //Update the user achievements.  
+        ref.child(achievementsUpdate).update(achievementData);
+        
+        profileUpdateCount += 1;
+        console.log(profileUpdateCount+". "+classmentorsPublicId+" Code School updated to "+numAchievements);  
+      
+      }
+
+    }
+     resolve();
+  });
+
+
+}
 var updateCodeCombat = function(classmentorsPublicId, serviceID, resolve){
   //console.log("Update Code Combat for ClassMentors user",classmentorsPublicId,"with codeCombat id", serviceID);
   var theUrl = "https://codecombat.com/db/user/" + serviceID + "/level.sessions?project=state.complete,levelID,levelName";
@@ -420,17 +494,20 @@ var get_profile = function (service_response_body, task_data, reject, resolve) {
 
     var theUrl = get_service_url(service, serviceID);
     // Reject bad requests
-    if (theUrl == "") {
-      console.log("Resolving unsupported service. "+service+" "+serviceID);
-      resolve("Non-supported service " + service);
-      //reject("Non-supported service " + service);
-    } else if(service=="freeCodeCamp") {
+    if(service=="freeCodeCamp") {
          //console.log("Updating FreeCodeCamp achievements");
          updateFreeCodeCamp(classMentorsId, serviceID, resolve)
-    
     } else if(service=="codeCombat") {
          //console.log("Updating Code Combat achievements");
          updateCodeCombat(classMentorsId, serviceID, resolve);
+    } else if(service=="codeSchool") {
+        //console.log("Updating Code School achievements");
+        updateCodeSchool(classMentorsId, serviceID, resolve);
+    }
+    else if (theUrl == "") {
+      console.log("Resolving unsupported service. "+service+" "+serviceID);
+      resolve("Non-supported service " + service);
+      //reject("Non-supported service " + service);
     } else {
     //Fetch the service url
       //console.log("requesting url ", theUrl)  
