@@ -1,0 +1,8 @@
+extends: singpath/node
+plugins:
+  - node
+rules:
+  no-console: "off"
+  node/no-unsupported-features: 
+    - error
+    - version: 4

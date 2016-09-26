@@ -1,5 +1,5 @@
 { 
   "debug":false,
-  "idleTimeout":2000,
-  "busyTimeout":45000
+  "idleTimeout":50000,
+  "busyTimeout":60000
 }

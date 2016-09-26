@@ -35,8 +35,18 @@ jspm_packages
 
 # Optional REPL history
 .node_repl_history
+
+# node-lambda
 .env
 deploy.env
 event.json
+build/
+
+# Deployment settings
+firebase-key.json
+
+# Editors 
+*.sublime-project
+*.sublime-workspace
 
 .DS_Store
