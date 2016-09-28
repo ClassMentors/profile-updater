@@ -87,7 +87,7 @@ var saveFccAchievements = function (profileUrl, classmentorsPublicId, achievemen
 
     var updateData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements };
     //Update the user profile.  
-    //ref.child(profileUpdate).update(updateData);
+    ref.child(profileUpdate).update(updateData);
 
     var achievementData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements, 'achievements': achievements };
     //Update the user achievements.  
