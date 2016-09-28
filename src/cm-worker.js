@@ -21,6 +21,35 @@ var firebaseUrl;
 var ref;
 var queueRef;
 var queue;
+var loggingLevel = "INFO";
+var workerID = "local"
+
+var log = function(message, data, callback){
+    // If no callback provided, then pass a default callback to the firebase.push() 
+    if(!callback) callback = function(){};
+
+    var workerLog = "logs/worker";
+    var logData = {}
+    if(data) logData = data; 
+    logData['message'] = message; 
+    logData['timestamp'] = Firebase.ServerValue.TIMESTAMP;
+    //logData['level'] = "INFO";
+    logData['workerID'] = workerID;
+    
+    if(!logData.hasOwnProperty('level')) logData['level'] = "INFO";
+     
+    if(logData['level'] != "DEBUG" || loggingLevel=="DEBUG"){
+      console.log(logData);  
+      ref.child(workerLog).push(logData, callback);
+    } else {
+      // Not logging debug values. 
+    }
+    // If any functions need to wait for callbacks to finish. 
+
+}
+var logger = {
+  "log":log
+}
 
 var initiateFirebase = function (_firebaseUrl, firebaseToken) {
   firebaseUrl = _firebaseUrl;
@@ -58,7 +87,7 @@ var saveFccAchievements = function (profileUrl, classmentorsPublicId, achievemen
 
     var updateData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements };
     //Update the user profile.  
-    ref.child(profileUpdate).update(updateData);
+    //ref.child(profileUpdate).update(updateData);
 
     var achievementData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements, 'achievements': achievements };
     //Update the user achievements.  
@@ -358,18 +387,32 @@ var process_task = function (data, progress, resolve, reject) {
 var handler = function (event, context) {
   var eventIdleTimeout = 50000
   var eventBusyTimeout = 60000
+  var start = new Date();
+  var eventIdleTimeout = 30000
+  var eventBusyTimeout = 45000
+  var firebaseUrl = process.env.FIREBASE_URL;
+  var firebaseToken = process.env.FIREBASE_TOKEN;
+  if(context.awsRequestId){
+      workerID = context.awsRequestId;
+  }
+  initiateFirebase(firebaseUrl, firebaseToken);
   if (event['idleTimeout']) {
     eventIdleTimeout = event['idleTimeout'];
     console.log("Updating idleTimeout to ", eventIdleTimeout);
+    logger.log("Updating idleTimeout", {"idleTimeout":eventIdleTimeout, "level":"DEBUG"});
   }
   if (event['busyTimeout']) {
     eventBusyTimeout = event['busyTimeout'];
     console.log("Updating busyTimeout to ", eventBusyTimeout);
+    logger.log("Updating busyTimeout", {"busyTimeout":eventBusyTimeout, "level":"DEBUG"});
   }
   if (event['debug']) {
     console.log("event", event);
     //console.log(context);
     console.log(process.env);
+    loggingLevel="DEBUG";
+    logger.log("event", {'level':"DEBUG", "event":event});
+    logger.log("process.env", {"process":process.env, "level":"DEBUG"});
   }
   var firebaseUrl = process.env.FIREBASE_URL;
   var firebaseToken = process.env.FIREBASE_TOKEN;
@@ -377,8 +420,12 @@ var handler = function (event, context) {
     //console.log("--------");
     //console.log(firebaseUrl);
     //console.log(firebaseToken);
+    //logger.log("--------");
+    //logger.log(firebaseUrl);
+    //logger.log(firebaseToken);
     initiateFirebase(firebaseUrl, firebaseToken);
     var data = { "from": "handler", "updated": Firebase.ServerValue.TIMESTAMP };
+    //var data = { "from": "handler", "updated": Firebase.ServerValue.TIMESTAMP };
     ref.child('queue/tasks').once('value', function (snapshot) {
       // code to handle new value
       var tasks = snapshot.val();
@@ -386,18 +433,25 @@ var handler = function (event, context) {
       // If tasks, use the busyTimeout. 
       if (tasks) {
         console.log("There were tasks. Using busy timeout.");
+        //logger.log("There were tasks. Using busy timeout.");
         var delay = eventBusyTimeout;
       }
       console.log("Starting queue for " + delay + "ms.")
+      logger.log("starting",{"plannedDuration": delay, "level":"INFO"});
       queue = new Queue(queueRef, process_task);
       queue.addWorker();
       queue.addWorker();
       queue.addWorker();
       console.log("numWorkers", queue.getWorkerCount());
+      logger.log("numWorkers", {"workers":queue.getWorkerCount(), "level":"DEBUG"});
       setTimeout(function () {
         queue.shutdown().then(function () {
           console.log('Finished queue shutdown');
           context.done();
+          var stop = new Date();
+          var duration = stop - start;
+          // pass the context done method to the logger to end process after logging.   
+          logger.log('shutdown',{"duration":duration}, context.done);          
         });
       }, delay);
 
