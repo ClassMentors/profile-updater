@@ -39,7 +39,7 @@ var log = function(message, data, callback){
     if(!logData.hasOwnProperty('level')) logData['level'] = "INFO";
      
     if(logData['level'] != "DEBUG" || loggingLevel=="DEBUG"){
-      console.log(logData);  
+      //console.log(logData);  
       ref.child(workerLog).push(logData, callback);
     } else {
       // Not logging debug values. 
@@ -63,6 +63,11 @@ var initiateFirebase = function (_firebaseUrl, firebaseToken) {
       //console.log("Login Succeeded!", authData);
     }
   });
+  // TODO: Need to add TIMESTAMP to FirebaseMock
+  // No ServerValue in the MockFirebase
+ if(!Firebase.ServerValue){ 
+      Firebase.ServerValue = {'TIMESTAMP':"TEST_TIMESTAMP"};
+  }
 }
 
 var saveFccAchievements = function (profileUrl, classmentorsPublicId, achievements, resolve) {
@@ -189,6 +194,75 @@ var updateFreeCodeCamp = function (classMentorsId, serviceID, resolve) {
   //console.log("Update Free Code Camp for ClassMentors user",classMentorsId,"with fcc id", serviceID);
   fetchFreeCodeCampProfileObject("https://www.freecodecamp.com/" + serviceID, classMentorsId, resolve);
 }
+
+var updatePivotalExpert = function (classmentorsPublicId, serviceID, resolve) {
+  //Get the publicID before continuing. 
+  var theAuthUserKey = null;//"google:110893970871115341770";
+
+  var theAuthUrl = "https://pivotal-expert.firebaseio.com/auth/usedLinks/" + serviceID + ".json";
+  request(theAuthUrl, function (error, response, body) {
+      var theAuthUserKey = body;
+  });
+  var theAuthUserKey = "google:110893970871115341770";
+  //var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
+  var theUrl = "https://pivotal-expert.firebaseio.com/userProfiles/"+theAuthUserKey+"/courseProgress.json";
+  //var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
+  request(theUrl, function (error, response, body) {
+    if (error) {
+      console.log(error);
+      //console.log("the body", body);
+      //resolve();
+    } else {
+
+      var jsonObject;
+      var totalAchievements = -1;
+      var achievements = {}
+      try {
+        jsonObject = JSON.parse(body);
+      } catch (e) {
+        if (e.name = "SyntaxError") {
+          var message = "User pivotal expert profile is not public."
+          console.log(message);
+          error = message;
+          //totalAchievements = -1;
+
+        }
+        //console.log("Error parsing json from pivotal expert. "+e);
+        //console.log(e);
+      }
+
+      if (jsonObject) {
+        numAchievements = 0;
+        for(achievementKey in jsonObject){
+          numAchievements += 1;
+          var item = { "name": "No PE names yet", "complete": true };
+          achievements[achievementKey] = item;
+          //console.log(achievementKey);
+        }
+
+        var profileUpdate = "classMentors/userProfiles/" + classmentorsPublicId + "/services/pivotalExpert";
+        var achievementsUpdate = "classMentors/userAchievements/" + classmentorsPublicId + "/services/pivotalExpert";
+
+        var updateData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements };
+        //Update the user profile.  
+        ref.child(profileUpdate).update(updateData);
+
+        var achievementData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements, 'achievements': achievements };
+        //Update the user achievements.  
+        ref.child(achievementsUpdate).update(achievementData);
+
+        profileUpdateCount += 1;
+        console.log(profileUpdateCount + ". " + classmentorsPublicId + " Pivotal Expert updated to " + numAchievements);
+
+      }
+
+    }
+    resolve();
+  });
+
+
+}
+
 
 var updateCodeSchool = function (classmentorsPublicId, serviceID, resolve) {
   var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
@@ -359,6 +433,10 @@ var get_profile = function (service_response_body, task_data, reject, resolve) {
       //console.log("Updating Code School achievements");
       updateCodeSchool(classMentorsId, serviceID, resolve);
     }
+     else if (service == "pivotalExpert") {
+      //console.log("Updating Pivotal Expert achievements");
+      updatePivotalExpert(classMentorsId, serviceID, resolve);
+    }
     // Add support for Pivotal Expert here. 
     else {
       console.log("Resolving unsupported service. " + service + " " + serviceID);
@@ -482,5 +560,6 @@ if (require.main === module && args[0] != "-fcc") {
     "initiateFirebase": initiateFirebase,
     "process_task": process_task,
     "get_profile": get_profile,
+    "log":log
   }
 }
