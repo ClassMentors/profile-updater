@@ -201,66 +201,67 @@ var updatePivotalExpert = function (classmentorsPublicId, serviceID, resolve) {
 
   var theAuthUrl = "https://pivotal-expert.firebaseio.com/auth/usedLinks/" + serviceID + ".json";
   request(theAuthUrl, function (error, response, body) {
-      var theAuthUserKey = body;
-  });
-  var theAuthUserKey = "google:110893970871115341770";
-  //var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
-  var theUrl = "https://pivotal-expert.firebaseio.com/userProfiles/"+theAuthUserKey+"/courseProgress.json";
-  //var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
-  request(theUrl, function (error, response, body) {
-    if (error) {
-      console.log(error);
-      //console.log("the body", body);
-      //resolve();
-    } else {
+      var theAuthUserKey = JSON.parse(body);// body;
+      console.log("Fetched AuthUserKey "+theAuthUserKey);  
+      //var theAuthUserKey = "google:110893970871115341770";
+      //var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
+      var theUrl = "https://pivotal-expert.firebaseio.com/userProfiles/"+theAuthUserKey+"/courseProgress.json";
+      //var theUrl = "https://www.codeschool.com/users/" + serviceID + ".json";
+      console.log("Fetching userProfile details from "+theUrl);
+      request(theUrl, function (error, response, body) {
+        if (error) {
+          console.log(error);
+          //console.log("the body", body);
+          //resolve();
+        } else {
 
-      var jsonObject;
-      var totalAchievements = -1;
-      var achievements = {}
-      try {
-        jsonObject = JSON.parse(body);
-      } catch (e) {
-        if (e.name = "SyntaxError") {
-          var message = "User pivotal expert profile is not public."
-          console.log(message);
-          error = message;
-          //totalAchievements = -1;
+          var jsonObject;
+          var totalAchievements = -1;
+          var achievements = {}
+          try {
+            jsonObject = JSON.parse(body);
+          } catch (e) {
+            if (e.name = "SyntaxError") {
+              var message = "User pivotal expert profile is not public."
+              console.log(message);
+              error = message;
+              //totalAchievements = -1;
+
+            }
+            //console.log("Error parsing json from pivotal expert. "+e);
+            //console.log(e);
+          }
+
+          if (jsonObject) {
+            numAchievements = 0;
+            for(achievementKey in jsonObject){
+              numAchievements += 1;
+              var item = { "name": "No PE names yet", "complete": true };
+              achievements[achievementKey] = item;
+              //console.log(achievementKey);
+            }
+
+            var profileUpdate = "classMentors/userProfiles/" + classmentorsPublicId + "/services/pivotalExpert";
+            var achievementsUpdate = "classMentors/userAchievements/" + classmentorsPublicId + "/services/pivotalExpert";
+
+            var updateData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements };
+            //Update the user profile.  
+            ref.child(profileUpdate).update(updateData);
+
+            var achievementData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements, 'achievements': achievements };
+            //Update the user achievements.  
+            ref.child(achievementsUpdate).update(achievementData);
+
+            profileUpdateCount += 1;
+            console.log(profileUpdateCount + ". " + classmentorsPublicId + " Pivotal Expert updated to " + numAchievements);
+
+          }
 
         }
-        //console.log("Error parsing json from pivotal expert. "+e);
-        //console.log(e);
-      }
+        resolve();
+      });
 
-      if (jsonObject) {
-        numAchievements = 0;
-        for(achievementKey in jsonObject){
-          numAchievements += 1;
-          var item = { "name": "No PE names yet", "complete": true };
-          achievements[achievementKey] = item;
-          //console.log(achievementKey);
-        }
-
-        var profileUpdate = "classMentors/userProfiles/" + classmentorsPublicId + "/services/pivotalExpert";
-        var achievementsUpdate = "classMentors/userAchievements/" + classmentorsPublicId + "/services/pivotalExpert";
-
-        var updateData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements };
-        //Update the user profile.  
-        ref.child(profileUpdate).update(updateData);
-
-        var achievementData = { "lastUpdate": Firebase.ServerValue.TIMESTAMP, "totalAchievements": numAchievements, 'achievements': achievements };
-        //Update the user achievements.  
-        ref.child(achievementsUpdate).update(achievementData);
-
-        profileUpdateCount += 1;
-        console.log(profileUpdateCount + ". " + classmentorsPublicId + " Pivotal Expert updated to " + numAchievements);
-
-      }
-
-    }
-    resolve();
   });
-
-
 }
 
 
@@ -340,7 +341,8 @@ var updateCodeSchool = function (classmentorsPublicId, serviceID, resolve) {
 }
 var updateCodeCombat = function (classmentorsPublicId, serviceID, resolve) {
   //console.log("Update Code Combat for ClassMentors user",classmentorsPublicId,"with codeCombat id", serviceID);
-  var theUrl = "https://codecombat.com/db/user/" + serviceID + "/level.sessions?project=state.complete,levelID,levelName";
+  var slugifiedID = serviceID.toLowerCase().replace(" ","-");
+  var theUrl = "https://codecombat.com/db/user/" + slugifiedID + "/level.sessions?project=state.complete,levelID,levelName";
   request(theUrl, function (error, response, body) {
 
     if (error) {
